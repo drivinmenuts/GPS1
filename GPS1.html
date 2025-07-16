@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Metal Detector GPS Logger</title>
+  <!-- Dynamic PWA manifest -->
+  <link rel="manifest" id="manifest-link" href="#">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(135deg,#1b5e20,#2e7d32,#388e3c);
+      color: #fafafa;
+      display: flex; flex-direction: column;
+      min-height: 100vh;
+    }
+    header {
+      padding: 1rem; text-align: center;
+      backdrop-filter: blur(10px);
+      background: rgba(255,255,255,0.1);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      padding: 0.2em 0.5em; margin-left: 0.5em;
+      border-radius: 0.5em; font-size: 0.9em;
+    }
+    main { flex: 1; padding: 1rem; }
+    section { margin-bottom: 1.5rem; }
+    #status { text-align: center; }
+    #voice-indicator {
+      width: 1rem; height: 1rem; margin: 0.5rem auto;
+      border-radius: 50%; background: #ccc;
+      transition: background 0.3s ease;
+    }
+    .listening-on { background: #ffeb3b !important; }
+    button {
+      min-height: 56px; padding: 0 1rem; font-size: 1rem;
+      margin: 0.2rem; border: none; border-radius: 0.5rem;
+      backdrop-filter: blur(5px);
+      background: rgba(255,255,255,0.1);
+      color: #fafafa; cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    aside#commands {
+      position: fixed; bottom: 1rem; left: 1rem;
+      background: rgba(0,0,0,0.3); padding: 1rem;
+      border-radius: 0.5rem; width: calc(100% - 2rem);
+    }
+    #messages {
+      position: fixed; bottom: 1rem; right: 1rem;
+      max-width: 200px;
+    }
+    .message {
+      background: rgba(0,0,0,0.5); padding: 0.5rem;
+      margin-top: 0.5rem; border-radius: 0.3rem;
+      animation: fadeout 5s forwards;
+    }
+    @keyframes fadeout {
+      0% { opacity: 1; }
+      80% { opacity: 1; }
+      100% { opacity: 0; display: none; }
+    }
+  </style>
+  <script>
+    // -- Dynamic Manifest Injection --
+    const manifest = {
+      name: "Metal Detector GPS Logger",
+      short_name: "MetalLogger",
+      start_url: ".",
+      display: "standalone",
+      background_color: "#1b5e20",
+      theme_color: "#2e7d32"
+    };
+    const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    document.getElementById('manifest-link').href = URL.createObjectURL(manifestBlob);
+
+    // -- Service Worker as Blob --
+    if ('serviceWorker' in navigator) {
+      const pageUrl = location.href;
+      const swCode = `
+        const CACHE_NAME = 'metal-detector-v1';
+        self.addEventListener('install', event => {
+          event.waitUntil(
+            caches.open(CACHE_NAME).then(cache => cache.add('${pageUrl}'))
+          );
+        });
+        self.addEventListener('fetch', event => {
+          event.respondWith(
+            caches.match(event.request).then(r => r || fetch(event.request))
+          );
+        });
+      `;
+      const swBlob = new Blob([swCode], { type: 'application/javascript' });
+      const swURL = URL.createObjectURL(swBlob);
+      navigator.serviceWorker.register(swURL).catch(console.error);
+    }
+  </script>
+</head>
+<body>
+  <header>
+    <h1>Metal Detector GPS Logger</h1>
+    <span class="badge">Android-Ready</span>
+  </header>
+  <main>
+    <section id="status">
+      <p id="status-text">Waiting for command...</p>
+      <div id="voice-indicator" class="listening-off"></div>
+    </section>
+
+    <section id="data">
+      <div id="coords" hidden>
+        <h2>Last Position</h2>
+        <p id="latlon">—</p>
+      </div>
+      <div id="logs" hidden>
+        <h2>Logged Finds</h2>
+        <ul id="find-list"></ul>
+      </div>
+    </section>
+
+    <section id="controls">
+      <button id="start-btn">Start Listening</button>
+      <button id="stop-btn" disabled>Stop Listening</button>
+      <button id="download-btn" hidden>Finish & Save</button>
+    </section>
+
+    <aside id="commands">
+      <h3>Voice Commands</h3>
+      <ul>
+        <li><code>POSITION</code> – log current GPS</li>
+        <li><code>FIND [description]</code> – describe your find</li>
+        <li><code>FINISH</code> – generate &amp; save KML</li>
+      </ul>
+    </aside>
+
+    <div id="messages"></div>
+  </main>
+
+  <script>
+    class AndroidMetalDetectorLogger {
+      constructor() {
+        // UI elements
+        this.statusText    = document.getElementById('status-text');
+        this.voiceIndicator= document.getElementById('voice-indicator');
+        this.startBtn      = document.getElementById('start-btn');
+        this.stopBtn       = document.getElementById('stop-btn');
+        this.downloadBtn   = document.getElementById('download-btn');
+        this.latlon        = document.getElementById('latlon');
+        this.coordsSection = document.getElementById('coords');
+        this.logsSection   = document.getElementById('logs');
+        this.findList      = document.getElementById('find-list');
+        this.messages      = document.getElementById('messages');
+
+        // State
+        this.recognition     = null;
+        this.audioCtx        = new (window.AudioContext||window.webkitAudioContext)();
+        this.isListening     = false;
+        this.places          = [];
+        this.currentCoords   = null;
+        this.currentStep     = 'waiting';
+        this.directoryHandle = null;
+
+        // Event bindings
+        this.startBtn.addEventListener('click', ()=> this.startListening());
+        this.stopBtn .addEventListener('click', ()=> this.stopListening());
+        this.downloadBtn.addEventListener('click', ()=> this.handleFinishCommand());
+
+        this.initializeApp();
+      }
+
+      async initializeApp() {
+        try {
+          await navigator.permissions.query({ name: 'microphone' });
+          await navigator.permissions.query({ name: 'geolocation' });
+        } catch (err) {
+          this.showMessage('Permissions error');
+        }
+        this.initSpeechRecognition();
+      }
+
+      initSpeechRecognition() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+          this.showMessage('SpeechRecognition not supported');
+          return;
+        }
+        this.recognition = new SR();
+        this.recognition.lang = 'en-GB';
+        this.recognition.interimResults = false;
+        this.recognition.continuous = true;
+
+        this.recognition.onstart = () => {
+          this.isListening = true; this.updateUI();
+        };
+        this.recognition.onend = () => {
+          this.isListening = false; this.updateUI();
+          if (this.currentStep !== 'finished') this.recognition.start();
+        };
+        this.recognition.onresult = evt => {
+          const text = evt.results[evt.results.length-1][0].transcript.trim().toLowerCase();
+          this.processVoiceCommand(text);
+        };
+      }
+
+      startListening() { if (this.recognition) this.recognition.start(); }
+      stopListening()  { if (this.recognition) this.recognition.stop();  }
+
+      async processVoiceCommand(raw) {
+        const [cmd, ...rest] = raw.split(' ');
+        const arg = rest.join(' ');
+        switch (cmd) {
+          case 'position': await this.handlePositionCommand(); break;
+          case 'find':     this.handleFindCommand(arg);      break;
+          case 'finish':   await this.handleFinishCommand(); break;
+          default:         this.showMessage(`Unknown: ${raw}`);
+        }
+      }
+
+      handlePositionCommand() {
+        return new Promise((res, rej) => {
+          this.statusText.textContent = 'Getting GPS…';
+          navigator.geolocation.getCurrentPosition(pos => {
+            const { latitude, longitude } = pos.coords;
+            this.currentCoords = { latitude, longitude, timestamp: new Date() };
+            this.places.push({ type:'position', ...this.currentCoords });
+            this.displayCoordinates(latitude, longitude);
+            this.playBeep();
+            this.currentStep = 'logged';
+            this.coordsSection.hidden = false;
+            this.logsSection.hidden = false;
+            res();
+          }, err => {
+            this.showMessage('GPS error, retrying…');
+            rej(err);
+          }, { enableHighAccuracy:true, timeout:10000 });
+        });
+      }
+
+      handleFindCommand(desc) {
+        if (!this.currentCoords) {
+          this.showMessage('Please say POSITION first');
+          return;
+        }
+        this.places.push({ type:'find', ...this.currentCoords, description: desc });
+        const li = document.createElement('li');
+        li.textContent = `${new Date().toLocaleTimeString()}: ${desc}`;
+        this.findList.appendChild(li);
+        this.playBeep();
+        this.currentStep = 'readyToFinish';
+      }
+
+      async handleFinishCommand() {
+        if (!this.places.length) {
+          this.showMessage('Nothing to finish');
+          return;
+        }
+        const kmlStr = this.generateCombinedKML();
+
+        // Fallback for browsers without File System Access API
+        if (!window.showDirectoryPicker) {
+          this.downloadKML(kmlStr);
+          this.playCompletionTone();
+          this.currentStep = 'finished';
+          this.downloadBtn.hidden = true;
+          this.showMessage('KML downloaded');
+          return;
+        }
+
+        try {
+          const dir = await this.getDirectory();
+          const filename = this.getFilenameForToday();
+          let fileHandle;
+
+          try {
+            fileHandle = await dir.getFileHandle(filename, { create: false });
+            const existing = await fileHandle.getFile();
+            const text = await existing.text();
+            const merged = this.mergeKml(text, kmlStr);
+            await this.writeFile(fileHandle, merged);
+          } catch (e) {
+            if (e.name === 'NotFoundError') {
+              fileHandle = await dir.getFileHandle(filename, { create: true });
+              await this.writeFile(fileHandle, kmlStr);
+            } else throw e;
+          }
+
+          this.playCompletionTone();
+          this.currentStep = 'finished';
+          this.downloadBtn.hidden = true;
+          this.showMessage(`KML saved: ${filename}`);
+        } catch (err) {
+          console.error(err);
+          this.showMessage(`Error: ${err.message}`);
+        }
+      }
+
+      generateCombinedKML() {
+        const hdr = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
+        const ftr = `</Document></kml>`;
+        const marks = this.places.map((p,i) => {
+          const name = p.type==='position' ? `Position ${i+1}` : `Find: ${p.description}`;
+          return `<Placemark>
+  <name>${name}</name>
+  <TimeStamp><when>${p.timestamp.toISOString()}</when></TimeStamp>
+  <Point><coordinates>${p.longitude},${p.latitude},0</coordinates></Point>
+</Placemark>`;
+        }).join('\n');
+        return hdr + '\n' + marks + '\n' + ftr;
+      }
+
+      downloadKML(kml) {
+        const blob = new Blob([kml], { type:'application/vnd.google-earth.kml+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const ts = new Date().toISOString().replace(/[:\-]/g,'').split('.')[0];
+        a.download = `metal_log_${ts}.kml`;
+        a.href = url; a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      displayCoordinates(lat, lon) {
+        this.latlon.textContent = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
+      }
+
+      playBeep() {
+        const osc = this.audioCtx.createOscillator();
+        osc.frequency.value = 800; osc.connect(this.audioCtx.destination);
+        osc.start(); setTimeout(()=>osc.stop(),100);
+      }
+      playCompletionTone() {
+        const osc = this.audioCtx.createOscillator();
+        osc.frequency.value = 400; osc.connect(this.audioCtx.destination);
+        osc.start(); setTimeout(()=>osc.stop(),500);
+      }
+
+      updateUI() {
+        this.voiceIndicator.className = this.isListening ? 'listening-on':'listening-off';
+        this.startBtn.disabled = this.isListening;
+        this.stopBtn.disabled  = !this.isListening;
+        this.downloadBtn.hidden = !this.places.length || this.currentStep==='finished';
+        this.statusText.textContent = this.isListening ? 'Listening…':'Paused';
+      }
+
+      showMessage(txt) {
+        const div = document.createElement('div');
+        div.className='message'; div.textContent=txt;
+        this.messages.appendChild(div);
+        setTimeout(()=>div.remove(),5000);
+      }
+
+      // -- FS Access API helpers --
+      async getDirectory() {
+        if (this.directoryHandle) return this.directoryHandle;
+        this.directoryHandle = await window.showDirectoryPicker();
+        return this.directoryHandle;
+      }
+      getFilenameForToday() {
+        const now = new Date();
+        const dd = String(now.getDate()).padStart(2,'0');
+        const mm = String(now.getMonth()+1).padStart(2,'0');
+        const yyyy = now.getFullYear();
+        return `${dd}-${mm}-${yyyy}.kml`;
+      }
+      mergeKml(existingText, newKml) {
+        const o = existingText.indexOf('<Document>');
+        const c = existingText.lastIndexOf('</Document>');
+        if (o<0||c<0) throw new Error('Invalid KML');
+        const head = existingText.slice(0, o+'<Document>'.length);
+        const tail = existingText.slice(c);
+        const ns = newKml.slice(newKml.indexOf('<Placemark>'), newKml.lastIndexOf('</Placemark>')+'</Placemark>'.length);
+        return head + '\n' + ns + '\n' + tail;
+      }
+      async writeFile(handle, contents) {
+        const w = await handle.createWritable();
+        await w.write(contents);
+        await w.close();
+      }
+    }
+
+    window.addEventListener('load', () => new AndroidMetalDetectorLogger());
+  </script>
+</body>
+</html>
