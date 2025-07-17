@@ -328,6 +328,9 @@
     <div id="messages"></div>
 
     <div class="controls">
+      <button class="btn primary" id="initBtn" style="display: none;">
+        🔧 Initialize App
+      </button>
       <button class="btn" id="startBtn" disabled>
         🎤 Start Voice Commands
       </button>
@@ -389,6 +392,7 @@
         this.findSectionEl = null;
         this.findTextBoxEl = null;
         this.messagesEl = null;
+        this.initBtn = null;
         this.startBtn = null;
         this.stopBtn = null;
         this.downloadBtn = null;
@@ -399,8 +403,10 @@
 
         this.initElements();
         this.detectAndroid();
-        // NOTE: We do NOT call initSpeechRecognition() here
         this.initEventListeners();
+        
+        // Attempt auto-initialization, but don't fail if it doesn't work
+        setTimeout(() => this.attemptAutoInit(), 500);
       }
 
       /***** UI SETUP *****/
@@ -414,6 +420,7 @@
         this.findSectionEl = document.getElementById('findSection');
         this.findTextBoxEl = document.getElementById('findTextBox');
         this.messagesEl = document.getElementById('messages');
+        this.initBtn = document.getElementById('initBtn');
         this.startBtn = document.getElementById('startBtn');
         this.stopBtn = document.getElementById('stopBtn');
         this.downloadBtn = document.getElementById('downloadBtn');
@@ -439,6 +446,7 @@
       }
 
       initEventListeners() {
+        this.initBtn.addEventListener('click', () => this.initializeApp());
         this.startBtn.addEventListener('click', () => this.startListening());
         this.stopBtn.addEventListener('click', () => this.stopListening());
         this.downloadBtn.addEventListener('click', () => this.downloadKML());
@@ -504,59 +512,156 @@
         }
       }
 
+      async attemptAutoInit() {
+        this.debugLog('🔄 Attempting automatic initialization...');
+        try {
+          await this.initializeApp();
+        } catch (err) {
+          this.debugLog('⚠️ Auto-initialization failed: ' + err.message);
+          this.updateStatus('⚠️ Click "Initialize App" to set up voice commands');
+          this.initBtn.style.display = 'block';
+          this.showError('Auto-initialization failed. Click "Initialize App" to try again.');
+        }
+      }
+
       /***** INITIALIZATION FLOW *****/
       async initializeApp() {
-        this.debugLog('Auto‐initializing app…');
+        this.debugLog('🚀 Starting app initialization...');
         this.messagesEl.innerHTML = ''; // clear old messages
+        this.updateStatus('🔧 Checking browser compatibility...');
 
-        if (!this.checkAPIsupport()) return;
-
-        try {
-          await this.requestPermissions();
-        } catch (err) {
-          this.showError('Setup failed: ' + err.message);
+        // Step 1: Check API support
+        if (!this.checkAPIsupport()) {
+          this.updateStatus('❌ Browser compatibility issues detected');
           this.showAndroidHelp();
           return;
         }
 
-        await this.initAudioContext();
+        this.updateStatus('🎤 Requesting microphone permission...');
+        this.debugLog('✅ API support check passed');
 
-        // Now that AudioContext exists, create a new SpeechRecognition instance
-        this.initSpeechRecognition();
+        // Step 2: Request permissions with better error handling
+        try {
+          await this.requestPermissions();
+          this.debugLog('✅ Microphone permission granted');
+        } catch (err) {
+          this.debugLog('❌ Permission request failed: ' + err.message);
+          this.updateStatus('❌ Microphone permission denied');
+          this.showError('Microphone access required. Please enable in browser settings.');
+          this.showAndroidHelp();
+          // Don't return - continue with limited functionality
+        }
 
+        // Step 3: Initialize audio context
+        this.updateStatus('🔊 Setting up audio system...');
+        try {
+          await this.initAudioContext();
+          this.debugLog('✅ Audio context initialized');
+        } catch (err) {
+          this.debugLog('⚠️ Audio context failed: ' + err.message);
+          // Continue without audio feedback
+        }
+
+        // Step 4: Initialize speech recognition
+        this.updateStatus('🗣️ Setting up voice recognition...');
+        try {
+          this.initSpeechRecognition();
+          if (this.recognition) {
+            this.debugLog('✅ Speech recognition initialized');
+          } else {
+            throw new Error('Speech recognition not available');
+          }
+        } catch (err) {
+          this.debugLog('❌ Speech recognition failed: ' + err.message);
+          this.updateStatus('❌ Voice recognition setup failed');
+          this.showError('Voice recognition not available. Check browser compatibility.');
+          this.showAndroidHelp();
+          this.initBtn.style.display = 'block'; // Show manual retry button
+          this.isInitialized = false;
+          return;
+        }
+
+        // Step 5: Finalize initialization
         this.isInitialized = true;
-
-        // Enable "Start Voice Commands" and immediately start listening
+        this.initBtn.style.display = 'none'; // Hide manual init button
         this.startBtn.disabled = false;
-        this.updateStatus('✅ App ready! Awaiting "POSITION"');
-        this.showSuccess('🎉 Listening for "POSITION" now.');
-        this.startListening();
+        this.updateStatus('✅ App ready! Click "Start Voice Commands"');
+        this.debugLog('🎉 Initialization completed successfully');
+        this.showSuccess('🎉 App ready! Click "Start Voice Commands" to begin.');
+        
+        // Auto-start listening after a brief delay
+        setTimeout(() => {
+          if (this.isInitialized && !this.isListening) {
+            this.debugLog('🔄 Auto-starting voice commands...');
+            this.startListening();
+          }
+        }, 1500);
       }
 
       checkAPIsupport() {
         const issues = [];
+        const warnings = [];
+        
+        // Check Speech Recognition
         if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
           issues.push('Speech Recognition not available');
+        } else {
+          this.debugLog('✅ Speech Recognition API available');
         }
+        
+        // Check Microphone API
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           issues.push('Microphone API not supported');
+        } else {
+          this.debugLog('✅ Microphone API available');
         }
+        
+        // Check Geolocation
         if (!navigator.geolocation) {
           issues.push('GPS not available');
+        } else {
+          this.debugLog('✅ Geolocation API available');
         }
+        
+        // Check HTTPS requirement
         if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-          issues.push('HTTPS required for microphone');
+          issues.push('HTTPS required for microphone access');
+        } else {
+          this.debugLog('✅ Secure context verified');
         }
+        
+        // Check browser type
+        const ua = navigator.userAgent.toLowerCase();
+        const isChrome = /chrome/.test(ua) && !/edg/.test(ua);
+        const isBrave = /chrome/.test(ua) && /brave/.test(ua);
+        const isAndroid = /android/.test(ua);
+        
+        if (!isChrome && !isBrave) {
+          warnings.push('Chrome or Brave browser recommended');
+        }
+        
+        this.debugLog(`Browser detection - Chrome: ${isChrome}, Brave: ${isBrave}, Android: ${isAndroid}`);
 
         if (issues.length) {
-          this.showError('⚠️ ' + issues.join(', '));
+          this.showError('⚠️ Critical issues: ' + issues.join(', '));
+          if (warnings.length) {
+            this.showError('⚠️ Recommendations: ' + warnings.join(', '));
+          }
           return false;
         }
+        
+        if (warnings.length) {
+          warnings.forEach(warning => this.debugLog('⚠️ ' + warning));
+        }
+        
         return true;
       }
 
       async requestPermissions() {
+        this.debugLog('🔐 Requesting microphone permission...');
+        
         try {
+          // Test microphone access with a short-lived stream
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: {
               echoCancellation: true,
@@ -564,12 +669,29 @@
               autoGainControl: true,
             },
           });
+          
           // Stop tracks immediately; we just needed the permission prompt
           stream.getTracks().forEach((t) => t.stop());
           this.debugLog('✅ Microphone permission granted');
+          return true;
+          
         } catch (err) {
-          this.debugLog('❌ Microphone permission failed: ' + err.message);
-          throw new Error('Microphone access denied');
+          this.debugLog('❌ Microphone permission error: ' + err.name + ' - ' + err.message);
+          
+          // Provide specific error messages based on error type
+          if (err.name === 'NotAllowedError') {
+            throw new Error('Microphone access denied by user. Please enable in browser settings.');
+          } else if (err.name === 'NotFoundError') {
+            throw new Error('No microphone found. Please connect a microphone.');
+          } else if (err.name === 'NotReadableError') {
+            throw new Error('Microphone is busy or being used by another application.');
+          } else if (err.name === 'OverconstrainedError') {
+            throw new Error('Microphone constraints not supported.');
+          } else if (err.name === 'SecurityError') {
+            throw new Error('Microphone access blocked due to security restrictions.');
+          } else {
+            throw new Error('Microphone access failed: ' + err.message);
+          }
         }
       }
 
@@ -2121,11 +2243,11 @@ Time: ${c.timestamp.toLocaleString()}`;
       }
     }
 
-    // Instantiate and auto-initialize on DOMContentLoaded
+    // Instantiate on DOMContentLoaded
     let androidLogger;
     document.addEventListener('DOMContentLoaded', () => {
       androidLogger = new AndroidMetalDetectorLogger();
-      androidLogger.initializeApp();
+      // Auto-initialization is handled by the constructor
     });
   </script>
 </body>
