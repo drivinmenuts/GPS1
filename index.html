@@ -1,387 +1,1164 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Metal Detector GPS Logger</title>
-  <!-- Dynamic PWA manifest -->
-  <link rel="manifest" id="manifest-link" href="#">
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, user-scalable=no"
+  />
+  <title>Metal Detector GPS Logger – Reliable Auto‐Initialize & Resume</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    /*==== (CSS unchanged from previous versions) ====*/
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
     body {
-      font-family: 'Roboto', sans-serif;
-      background: linear-gradient(135deg,#1b5e20,#2e7d32,#388e3c);
-      color: #fafafa;
-      display: flex; flex-direction: column;
+      font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        sans-serif;
+      background: linear-gradient(
+        135deg,
+        #1b5e20 0%,
+        #2e7d32 50%,
+        #388e3c 100%
+      );
       min-height: 100vh;
+      color: white;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      touch-action: manipulation;
     }
-    header {
-      padding: 1rem; text-align: center;
-      backdrop-filter: blur(10px);
-      background: rgba(255,255,255,0.1);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    .container {
+      max-width: 420px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(15px);
+      border-radius: 20px;
+      padding: 25px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
-    .badge {
-      display: inline-block;
-      background: rgba(255,255,255,0.2);
-      padding: 0.2em 0.5em; margin-left: 0.5em;
-      border-radius: 0.5em; font-size: 0.9em;
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 22px;
+      font-weight: 500;
+      color: #e8f5e8;
     }
-    main { flex: 1; padding: 1rem; }
-    section { margin-bottom: 1.5rem; }
-    #status { text-align: center; }
-    #voice-indicator {
-      width: 1rem; height: 1rem; margin: 0.5rem auto;
-      border-radius: 50%; background: #ccc;
-      transition: background 0.3s ease;
+    .android-badge {
+      text-align: center;
+      background: linear-gradient(45deg, #4caf50, #8bc34a);
+      padding: 10px 16px;
+      border-radius: 25px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
     }
-    .listening-on { background: #ffeb3b !important; }
-    button {
-      min-height: 56px; padding: 0 1rem; font-size: 1rem;
-      margin: 0.2rem; border: none; border-radius: 0.5rem;
-      backdrop-filter: blur(5px);
-      background: rgba(255,255,255,0.1);
-      color: #fafafa; cursor: pointer;
+    .status {
+      text-align: center;
+      margin-bottom: 20px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      font-size: 15px;
+      min-height: 55px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.4;
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    aside#commands {
-      position: fixed; bottom: 1rem; left: 1rem;
-      background: rgba(0,0,0,0.3); padding: 1rem;
-      border-radius: 0.5rem; width: calc(100% - 2rem);
+    .voice-indicator {
+      text-align: center;
+      margin: 18px 0;
+      font-size: 17px;
+      font-weight: 500;
+      padding: 14px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
-    #messages {
-      position: fixed; bottom: 1rem; right: 1rem;
-      max-width: 200px;
+    .listening {
+      color: #ff5722;
+      background: rgba(255, 87, 34, 0.2);
+      animation: androidPulse 1s infinite;
+      border-color: rgba(255, 87, 34, 0.4);
     }
-    .message {
-      background: rgba(0,0,0,0.5); padding: 0.5rem;
-      margin-top: 0.5rem; border-radius: 0.3rem;
-      animation: fadeout 5s forwards;
+    .ready {
+      color: #4caf50;
+      background: rgba(76, 175, 80, 0.2);
+      border-color: rgba(76, 175, 80, 0.4);
     }
-    @keyframes fadeout {
-      0% { opacity: 1; }
-      80% { opacity: 1; }
-      100% { opacity: 0; display: none; }
+    .processing {
+      color: #ff9800;
+      background: rgba(255, 152, 0, 0.2);
+      border-color: rgba(255, 152, 0, 0.4);
+    }
+    @keyframes androidPulse {
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+      }
+    }
+    .text-box {
+      width: 100%;
+      padding: 14px;
+      margin: 12px 0;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      resize: vertical;
+      min-height: 90px;
+      line-height: 1.5;
+    }
+    .text-box::placeholder {
+      color: rgba(255, 255, 255, 0.6);
+    }
+    .text-box:focus {
+      outline: none;
+      border-color: #4caf50;
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+    }
+    .text-label {
+      display: block;
+      margin-bottom: 6px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .btn {
+      padding: 16px 20px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      min-height: 56px;
+      position: relative;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active {
+      transform: scale(0.98);
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn.primary {
+      background: linear-gradient(45deg, #4caf50, #66bb6a);
+      border-color: rgba(76, 175, 80, 0.6);
+      box-shadow: 0 3px 12px rgba(76, 175, 80, 0.3);
+    }
+    .btn.danger {
+      background: linear-gradient(45deg, #f44336, #ef5350);
+      border-color: rgba(244, 67, 54, 0.6);
+    }
+    .btn.success {
+      background: linear-gradient(45deg, #2196f3, #42a5f5);
+      border-color: rgba(33, 150, 243, 0.6);
+    }
+    .btn.merge {
+      background: linear-gradient(45deg, #9c27b0, #ba68c8);
+      border-color: rgba(156, 39, 176, 0.6);
+      box-shadow: 0 3px 12px rgba(156, 39, 176, 0.3);
+    }
+    .commands {
+      margin-top: 20px;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      font-size: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .commands h3 {
+      margin-bottom: 12px;
+      color: #81c784;
+      font-size: 16px;
+    }
+    .commands ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    .commands li {
+      margin: 8px 0;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .commands li:last-child {
+      border-bottom: none;
+    }
+    .merge-section {
+      margin-top: 25px;
+      padding: 16px;
+      background: rgba(156, 39, 176, 0.1);
+      border-radius: 12px;
+      border: 1px solid rgba(156, 39, 176, 0.3);
+    }
+    .merge-section h3 {
+      margin-bottom: 12px;
+      color: #ce93d8;
+      font-size: 16px;
+      text-align: center;
+    }
+    .merge-section p {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.8);
+      text-align: center;
+      margin-bottom: 15px;
+      line-height: 1.4;
+    }
+    .error {
+      background: rgba(244, 67, 54, 0.2);
+      border: 2px solid rgba(244, 67, 54, 0.5);
+      color: #ffcdd2;
+      margin: 12px 0;
+      padding: 14px;
+      border-radius: 10px;
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .success {
+      background: rgba(76, 175, 80, 0.2);
+      border: 2px solid rgba(76, 175, 80, 0.5);
+      color: #c8e6c9;
+      margin: 12px 0;
+      padding: 14px;
+      border-radius: 10px;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .debug {
+      background: rgba(255, 193, 7, 0.15);
+      border: 1px solid rgba(255, 193, 7, 0.3);
+      color: #fff59d;
+      margin: 6px 0;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      word-break: break-word;
+      line-height: 1.3;
+    }
+    .android-help {
+      background: rgba(33, 150, 243, 0.15);
+      border: 2px solid rgba(33, 150, 243, 0.4);
+      color: #bbdefb;
+      margin: 15px 0;
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .android-help h4 {
+      color: #64b5f6;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    @media (max-width: 480px) {
+      .container {
+        padding: 20px;
+        margin: 10px;
+      }
+      h1 {
+        font-size: 20px;
+      }
     }
   </style>
-  <script>
-    // -- Dynamic Manifest Injection --
-    const manifest = {
-      name: "Metal Detector GPS Logger",
-      short_name: "MetalLogger",
-      start_url: ".",
-      display: "standalone",
-      background_color: "#1b5e20",
-      theme_color: "#2e7d32"
-    };
-    const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-    document.getElementById('manifest-link').href = URL.createObjectURL(manifestBlob);
-
-    // -- Service Worker as Blob --
-    if ('serviceWorker' in navigator) {
-      const pageUrl = location.href;
-      const swCode = `
-        const CACHE_NAME = 'metal-detector-v1';
-        self.addEventListener('install', event => {
-          event.waitUntil(
-            caches.open(CACHE_NAME).then(cache => cache.add('${pageUrl}'))
-          );
-        });
-        self.addEventListener('fetch', event => {
-          event.respondWith(
-            caches.match(event.request).then(r => r || fetch(event.request))
-          );
-        });
-      `;
-      const swBlob = new Blob([swCode], { type: 'application/javascript' });
-      const swURL = URL.createObjectURL(swBlob);
-      navigator.serviceWorker.register(swURL).catch(console.error);
-    }
-  </script>
 </head>
+
 <body>
-  <header>
-    <h1>Metal Detector GPS Logger</h1>
-    <span class="badge">Android-Ready</span>
-  </header>
-  <main>
-    <section id="status">
-      <p id="status-text">Waiting for command...</p>
-      <div id="voice-indicator" class="listening-off"></div>
-    </section>
+  <div class="container">
+    <h1>🔍 Metal Detector GPS Logger</h1>
+    <div class="android-badge">
+      🤖 Android Optimized – Reliable Auto‐Initialize & Resume
+    </div>
+    <div class="status" id="status">Initializing…</div>
+    <div class="voice-indicator ready" id="voiceIndicator">
+      🎤 Voice Commands Ready
+    </div>
 
-    <section id="data">
-      <div id="coords" hidden>
-        <h2>Last Position</h2>
-        <p id="latlon">—</p>
-      </div>
-      <div id="logs" hidden>
-        <h2>Logged Finds</h2>
-        <ul id="find-list"></ul>
-      </div>
-    </section>
+    <div id="coordinatesSection" style="display: none;">
+      <label class="text-label">📍 GPS Coordinates:</label>
+      <textarea
+        id="coordinatesTextBox"
+        class="text-box"
+        readonly
+        placeholder="Coordinates appear here after saying 'POSITION'"
+      ></textarea>
+    </div>
 
-    <section id="controls">
-      <button id="start-btn">Start Listening</button>
-      <button id="stop-btn" disabled>Stop Listening</button>
-      <button id="download-btn" hidden>Finish & Save</button>
-    </section>
-
-    <aside id="commands">
-      <h3>Voice Commands</h3>
-      <ul>
-        <li><code>POSITION</code> – log current GPS</li>
-        <li><code>FIND [description]</code> – describe your find</li>
-        <li><code>FINISH</code> – generate &amp; save KML</li>
-      </ul>
-    </aside>
+    <div id="findSection" style="display: none;">
+      <label class="text-label">🏆 Find Description:</label>
+      <textarea
+        id="findTextBox"
+        class="text-box"
+        readonly
+        placeholder="Description appears here after saying 'FIND'"
+      ></textarea>
+    </div>
 
     <div id="messages"></div>
-  </main>
+
+    <div class="controls">
+      <button class="btn" id="startBtn" disabled>
+        🎤 Start Voice Commands
+      </button>
+      <button class="btn danger" id="stopBtn" disabled>⏹️ Stop Listening</button>
+      <!-- Hidden manual download button; auto‐download on FINISH -->
+      <button class="btn success" id="downloadBtn" style="display: none;">
+        📥 Download KML
+      </button>
+    </div>
+
+    <div class="commands">
+      <h3>🗣️ Voice Commands:</h3>
+      <ul>
+        <li><strong>"POSITION"</strong> – Record GPS coordinates</li>
+        <li><strong>"FIND [description]"</strong> – Record find details</li>
+        <li>
+          <strong>"FINISH"</strong> – Auto-download one KML containing all points
+        </li>
+      </ul>
+    </div>
+
+    <div class="merge-section">
+      <h3>🔗 KML File Merger</h3>
+      <p>Merge all today's KML files from Downloads directory into a single cumulative file</p>
+      <button class="btn merge" id="mergeBtn">
+        🔗 MERGE TODAY'S KML FILES
+      </button>
+    </div>
+  </div>
 
   <script>
     class AndroidMetalDetectorLogger {
       constructor() {
+        // Speech, audio, and GPS state
+        this.recognition = null;
+        this.audioContext = null;
+        this.isListening = false;
+        this.isInitialized = false;
+        this.startAttempts = 0;
+        this.maxStartAttempts = 3;
+        this.recognitionTimeout = null;
+        this.debugMode = true;
+
+        // Temporary store for last GPS fix
+        this.currentPosition = null;
+
+        // Array of logged points
+        this.places = [];
+
+        // KML blob + filename (for FINISH)
+        this.kmlBlob = null;
+        this.kmlFilename = '';
+
         // UI elements
-        this.statusText    = document.getElementById('status-text');
-        this.voiceIndicator= document.getElementById('voice-indicator');
-        this.startBtn      = document.getElementById('start-btn');
-        this.stopBtn       = document.getElementById('stop-btn');
-        this.downloadBtn   = document.getElementById('download-btn');
-        this.latlon        = document.getElementById('latlon');
-        this.coordsSection = document.getElementById('coords');
-        this.logsSection   = document.getElementById('logs');
-        this.findList      = document.getElementById('find-list');
-        this.messages      = document.getElementById('messages');
+        this.statusEl = null;
+        this.voiceIndicatorEl = null;
+        this.coordinatesSectionEl = null;
+        this.coordinatesTextBoxEl = null;
+        this.findSectionEl = null;
+        this.findTextBoxEl = null;
+        this.messagesEl = null;
+        this.startBtn = null;
+        this.stopBtn = null;
+        this.downloadBtn = null;
+        this.mergeBtn = null;
 
-        // State
-        this.recognition     = null;
-        this.audioCtx        = new (window.AudioContext||window.webkitAudioContext)();
-        this.isListening     = false;
-        this.places          = [];
-        this.currentCoords   = null;
-        this.currentStep     = 'waiting';
-        this.directoryHandle = null;
+        // State: 'waiting' → after POSITION → 'logged' → after FIND → 'readyToFinish'
+        this.currentStep = 'waiting';
 
-        // Event bindings
-        this.startBtn.addEventListener('click', ()=> this.startListening());
-        this.stopBtn .addEventListener('click', ()=> this.stopListening());
-        this.downloadBtn.addEventListener('click', ()=> this.handleFinishCommand());
-
-        this.initializeApp();
+        this.initElements();
+        this.detectAndroid();
+        // NOTE: We do NOT call initSpeechRecognition() here
+        this.initEventListeners();
       }
 
-      async initializeApp() {
-        try {
-          await navigator.permissions.query({ name: 'microphone' });
-          await navigator.permissions.query({ name: 'geolocation' });
-        } catch (err) {
-          this.showMessage('Permissions error');
+      /***** UI SETUP *****/
+      initElements() {
+        this.statusEl = document.getElementById('status');
+        this.voiceIndicatorEl = document.getElementById('voiceIndicator');
+        this.coordinatesSectionEl = document.getElementById(
+          'coordinatesSection'
+        );
+        this.coordinatesTextBoxEl = document.getElementById('coordinatesTextBox');
+        this.findSectionEl = document.getElementById('findSection');
+        this.findTextBoxEl = document.getElementById('findTextBox');
+        this.messagesEl = document.getElementById('messages');
+        this.startBtn = document.getElementById('startBtn');
+        this.stopBtn = document.getElementById('stopBtn');
+        this.downloadBtn = document.getElementById('downloadBtn');
+        this.mergeBtn = document.getElementById('mergeBtn');
+      }
+
+      detectAndroid() {
+        const ua = navigator.userAgent.toLowerCase();
+        const isAndroid = /android/.test(ua);
+        const isChrome = /chrome/.test(ua) && !/edg/.test(ua);
+        this.debugLog('Android detected: ' + isAndroid);
+        this.debugLog('Chrome detected: ' + isChrome);
+
+        if (isAndroid) {
+          this.updateStatus(
+            isChrome
+              ? '🤖 Android Chrome detected – Excellent compatibility!'
+              : '🤖 Android detected – Chrome recommended'
+          );
+        } else {
+          this.updateStatus('⚠️ Optimized for Android');
         }
-        this.initSpeechRecognition();
       }
 
-      initSpeechRecognition() {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) {
-          this.showMessage('SpeechRecognition not supported');
+      initEventListeners() {
+        this.startBtn.addEventListener('click', () => this.startListening());
+        this.stopBtn.addEventListener('click', () => this.stopListening());
+        this.downloadBtn.addEventListener('click', () => this.downloadKML());
+        this.mergeBtn.addEventListener('click', () => this.mergeKMLFiles());
+
+        // Resume AudioContext on any tap/click
+        document.addEventListener('click', () => this.resumeAudioContext(), {
+          once: true,
+        });
+        document.addEventListener('touchstart', () => this.resumeAudioContext(), {
+          once: true,
+        });
+
+        // 1) visibilitychange: only to stop listening when hidden
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) {
+            if (this.isListening) {
+              this.stopListening();
+            }
+          }
+          // We do NOT attempt to re‐initialize here
+        });
+
+        // 2) focus: fired when the window/tab regains focus (Android unlock, returning to Chrome)
+        window.addEventListener('focus', () => {
+          if (!this.isInitialized) {
+            // If never initialized (first time, or page fully suspended without init), do it now
+            this.initializeApp();
+          } else {
+            // Already initialized → stop old recognition, recreate, and start listening
+            if (this.isListening) {
+              this.stopListening();
+            }
+            this.initSpeechRecognition();
+            this.startListening();
+          }
+        });
+
+        // 3) pageshow: covers restoration from bfcache
+        window.addEventListener('pageshow', (evt) => {
+          if (evt.persisted) {
+            if (!this.isInitialized) {
+              this.initializeApp();
+            } else {
+              if (this.isListening) {
+                this.stopListening();
+              }
+              this.initSpeechRecognition();
+              this.startListening();
+            }
+          }
+        });
+      }
+
+      async resumeAudioContext() {
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+          try {
+            await this.audioContext.resume();
+            this.debugLog('✅ Audio context resumed');
+          } catch (err) {
+            this.debugLog('⚠️ Audio resume failed: ' + err.message);
+          }
+        }
+      }
+
+      /***** INITIALIZATION FLOW *****/
+      async initializeApp() {
+        this.debugLog('Auto‐initializing app…');
+        this.messagesEl.innerHTML = ''; // clear old messages
+
+        if (!this.checkAPIsupport()) return;
+
+        try {
+          await this.requestPermissions();
+        } catch (err) {
+          this.showError('Setup failed: ' + err.message);
+          this.showAndroidHelp();
           return;
         }
-        this.recognition = new SR();
-        this.recognition.lang = 'en-GB';
-        this.recognition.interimResults = false;
+
+        await this.initAudioContext();
+
+        // Now that AudioContext exists, create a new SpeechRecognition instance
+        this.initSpeechRecognition();
+
+        this.isInitialized = true;
+
+        // Enable "Start Voice Commands" and immediately start listening
+        this.startBtn.disabled = false;
+        this.updateStatus('✅ App ready! Awaiting "POSITION"');
+        this.showSuccess('🎉 Listening for "POSITION" now.');
+        this.startListening();
+      }
+
+      checkAPIsupport() {
+        const issues = [];
+        if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+          issues.push('Speech Recognition not available');
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          issues.push('Microphone API not supported');
+        }
+        if (!navigator.geolocation) {
+          issues.push('GPS not available');
+        }
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+          issues.push('HTTPS required for microphone');
+        }
+
+        if (issues.length) {
+          this.showError('⚠️ ' + issues.join(', '));
+          return false;
+        }
+        return true;
+      }
+
+      async requestPermissions() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+          // Stop tracks immediately; we just needed the permission prompt
+          stream.getTracks().forEach((t) => t.stop());
+          this.debugLog('✅ Microphone permission granted');
+        } catch (err) {
+          this.debugLog('❌ Microphone permission failed: ' + err.message);
+          throw new Error('Microphone access denied');
+        }
+      }
+
+      async initAudioContext() {
+        try {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          this.audioContext = new AC();
+          this.debugLog('✅ Audio context created');
+        } catch (err) {
+          this.debugLog('⚠️ Audio context error: ' + err.message);
+        }
+      }
+
+      /***** SPEECH RECOGNITION SETUP (now inside initializeApp) *****/
+      initSpeechRecognition() {
+        // If a previous recognition exists, tear it down first
+        if (this.recognition) {
+          try {
+            this.recognition.onresult = null;
+            this.recognition.onerror = null;
+            this.recognition.onstart = null;
+            this.recognition.onend = null;
+            this.recognition = null;
+          } catch {}
+        }
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        this.recognition = SR ? new SR() : null;
+        if (!this.recognition) return;
+
         this.recognition.continuous = true;
+        this.recognition.interimResults = false;
+        this.recognition.lang = 'en-US';
+        this.recognition.maxAlternatives = 1;
 
         this.recognition.onstart = () => {
-          this.isListening = true; this.updateUI();
+          this.isListening = true;
+          this.startAttempts = 0;
+          this.updateVoiceIndicator('listening');
+          this.startBtn.disabled = true;
+          this.stopBtn.disabled = false;
         };
+
         this.recognition.onend = () => {
-          this.isListening = false; this.updateUI();
-          if (this.currentStep !== 'finished') this.recognition.start();
+          this.isListening = false;
+          this.updateVoiceIndicator('ready');
+          this.startBtn.disabled = false;
+          this.stopBtn.disabled = true;
+          // Auto‐restart if not finished
+          if (
+            this.currentStep !== 'finished' &&
+            this.isInitialized &&
+            this.startAttempts < this.maxStartAttempts
+          ) {
+            this.recognitionTimeout = setTimeout(() => this.startListening(), 1500);
+          }
         };
-        this.recognition.onresult = evt => {
-          const text = evt.results[evt.results.length-1][0].transcript.trim().toLowerCase();
-          this.processVoiceCommand(text);
+
+        this.recognition.onresult = (evt) => {
+          const lastResult = evt.results[evt.results.length - 1];
+          if (lastResult.isFinal) {
+            const transcript = lastResult[0].transcript.trim();
+            this.processVoiceCommand(transcript);
+          }
+        };
+
+        this.recognition.onerror = (evt) => {
+          this.debugLog('Speech error: ' + evt.error);
+          if (evt.error === 'not-allowed') {
+            this.showError('❌ Microphone blocked! Enable in browser settings.');
+            this.isInitialized = false;
+          } else if (evt.error === 'audio-capture') {
+            this.showError('❌ Microphone busy. Close other apps.');
+          }
         };
       }
 
-      startListening() { if (this.recognition) this.recognition.start(); }
-      stopListening()  { if (this.recognition) this.recognition.stop();  }
+      startListening() {
+        if (!this.isInitialized) {
+          this.showError('Please initialize first');
+          return;
+        }
+        if (!this.recognition) {
+          // If recognition wasn't created for some reason, create it now
+          this.initSpeechRecognition();
+          if (!this.recognition) {
+            this.showError('SpeechRecognition unavailable');
+            return;
+          }
+        }
+        if (this.isListening) return;
+        if (this.startAttempts >= this.maxStartAttempts) {
+          this.showError('Too many attempts. Refresh the page.');
+          return;
+        }
+        try {
+          this.startAttempts++;
+          this.recognition.start();
+          this.updateStatus('🎤 Listening… Say commands');
+        } catch (err) {
+          this.debugLog('Start error: ' + err.message);
+        }
+      }
 
-      async processVoiceCommand(raw) {
-        const [cmd, ...rest] = raw.split(' ');
-        const arg = rest.join(' ');
-        switch (cmd) {
-          case 'position': await this.handlePositionCommand(); break;
-          case 'find':     this.handleFindCommand(arg);      break;
-          case 'finish':   await this.handleFinishCommand(); break;
-          default:         this.showMessage(`Unknown: ${raw}`);
+      stopListening() {
+        if (this.recognition && this.isListening) {
+          this.recognition.stop();
+          if (this.recognitionTimeout) clearTimeout(this.recognitionTimeout);
+          this.updateStatus('🔇 Recognition stopped');
+          this.startAttempts = 0;
+        }
+      }
+
+      /***** VOICE COMMAND HANDLING *****/
+      processVoiceCommand(command) {
+        const lower = command.toLowerCase();
+        this.debugLog('Heard: ' + command);
+
+        if (lower.includes('position')) {
+          this.handlePositionCommand();
+        } else if (lower.includes('find')) {
+          this.handleFindCommand(lower);
+        } else if (lower.includes('finish')) {
+          this.handleFinishCommand();
+        } else {
+          this.updateStatus('Say: POSITION, FIND [desc], or FINISH');
         }
       }
 
       handlePositionCommand() {
-        return new Promise((res, rej) => {
-          this.statusText.textContent = 'Getting GPS…';
-          navigator.geolocation.getCurrentPosition(pos => {
-            const { latitude, longitude } = pos.coords;
-            this.currentCoords = { latitude, longitude, timestamp: new Date() };
-            this.places.push({ type:'position', ...this.currentCoords });
-            this.displayCoordinates(latitude, longitude);
+        if (!this.isInitialized) {
+          this.showError('Please initialize first');
+          return;
+        }
+        this.updateStatus('📍 Getting GPS…');
+        this.updateVoiceIndicator('processing');
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            this.currentPosition = {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+              timestamp: new Date(),
+            };
+            this.displayCoordinates();
             this.playBeep();
             this.currentStep = 'logged';
-            this.coordsSection.hidden = false;
-            this.logsSection.hidden = false;
-            res();
-          }, err => {
-            this.showMessage('GPS error, retrying…');
-            rej(err);
-          }, { enableHighAccuracy:true, timeout:10000 });
-        });
+            this.updateStatus('✅ Position fixed! Say "FIND [description]"');
+            this.updateVoiceIndicator('ready');
+          },
+          (err) => {
+            this.showError('GPS failed: ' + this.getGPSErrorMessage(err));
+            this.updateVoiceIndicator('ready');
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
       }
 
-      handleFindCommand(desc) {
-        if (!this.currentCoords) {
-          this.showMessage('Please say POSITION first');
+      getGPSErrorMessage(error) {
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            return 'Location denied. Enable location in settings.';
+          case error.POSITION_UNAVAILABLE:
+            return 'GPS unavailable. Move to open area.';
+          case error.TIMEOUT:
+            return 'GPS timeout. Try again.';
+          default:
+            return 'GPS error. Check settings.';
+        }
+      }
+
+      handleFindCommand(command) {
+        if (this.currentStep !== 'logged') {
+          this.showError('❌ Say "POSITION" first');
           return;
         }
-        this.places.push({ type:'find', ...this.currentCoords, description: desc });
-        const li = document.createElement('li');
-        li.textContent = `${new Date().toLocaleTimeString()}: ${desc}`;
-        this.findList.appendChild(li);
-        this.playBeep();
+        const desc = command.substring(command.indexOf('find') + 4).trim();
+        if (!desc) {
+          this.updateStatus('Say "FIND" followed by your description');
+          return;
+        }
+        // Save this point + description
+        const entry = {
+          lat: this.currentPosition.lat,
+          lng: this.currentPosition.lng,
+          accuracy: this.currentPosition.accuracy,
+          timestamp: this.currentPosition.timestamp,
+          description: desc,
+        };
+        this.places.push(entry);
+
+        // Update UI
+        this.findTextBoxEl.value = desc;
+        this.findSectionEl.style.display = 'block';
+
+        this.currentPosition = null;
         this.currentStep = 'readyToFinish';
+        this.updateStatus('✅ Description recorded! Say "FINISH"');
       }
 
-      async handleFinishCommand() {
-        if (!this.places.length) {
-          this.showMessage('Nothing to finish');
+      handleFinishCommand() {
+        if (this.places.length === 0) {
+          this.showError('❌ No points logged yet');
           return;
         }
-        const kmlStr = this.generateCombinedKML();
+        this.generateCombinedKML();
+        this.currentStep = 'finished';
+        this.stopListening();
+        this.updateStatus('✅ Generating & downloading cumulative KML…');
+        this.downloadKML();
+        this.playCompletionTone();
+      }
 
-        // Fallback for browsers without File System Access API
-        if (!window.showDirectoryPicker) {
-          this.downloadKML(kmlStr);
-          this.playCompletionTone();
-          this.currentStep = 'finished';
-          this.downloadBtn.hidden = true;
-          this.showMessage('KML downloaded');
+      displayCoordinates() {
+        const c = this.currentPosition;
+        const text = `Latitude: ${c.lat.toFixed(8)}
+Longitude: ${c.lng.toFixed(8)}
+Accuracy: ±${c.accuracy.toFixed(1)}m
+Time: ${c.timestamp.toLocaleString()}`;
+        this.coordinatesTextBoxEl.value = text;
+        this.coordinatesSectionEl.style.display = 'block';
+      }
+
+      generateCombinedKML() {
+        const now = new Date();
+        const datePrefix = now.toISOString().split('T')[0];
+        const timeOfDay = now.toTimeString().split(' ')[0].replace(/:/g, '');
+        this.kmlFilename = `${datePrefix}_cumulative_${timeOfDay}.kml`;
+
+        let placemarks = '';
+        this.places.forEach((p) => {
+          const firstWord = p.description
+            .split(' ')[0]
+            .replace(/[^a-zA-Z0-9]/g, '') || 'find';
+          const timestampStr = p.timestamp.toLocaleString();
+          const descriptionEscaped = p.description
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          const tsEscaped = timestampStr
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+          placemarks += `
+    <Placemark>
+      <name>${firstWord}</name>
+      <description>${descriptionEscaped}&#10;${tsEscaped}</description>
+      <Point><coordinates>${p.lng},${p.lat},0</coordinates></Point>
+    </Placemark>`;
+        });
+
+        const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Metal Detector Finds (Cumulative)</name>${placemarks}
+  </Document>
+</kml>`;
+
+        this.kmlBlob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
+      }
+
+      downloadKML() {
+        if (!this.kmlBlob) {
+          this.showError('❌ No KML to download');
+          return;
+        }
+        const url = URL.createObjectURL(this.kmlBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = this.kmlFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        this.showSuccess('📥 Download triggered: ' + this.kmlFilename);
+        // We do NOT clear places[], so a later "FINISH" still accumulates all points again.
+      }
+
+      /***** NEW KML MERGE FUNCTIONALITY *****/
+      async mergeKMLFiles() {
+        this.debugLog('🔗 Starting KML merge process...');
+        
+        // Check for File System Access API support
+        if (!('showDirectoryPicker' in window)) {
+          this.showError('❌ File System Access API not supported. Use Chrome/Brave browser.');
           return;
         }
 
         try {
-          const dir = await this.getDirectory();
-          const filename = this.getFilenameForToday();
-          let fileHandle;
-
+          // Get today's date for filtering files
+          const today = new Date();
+          const todayDateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+          
+          this.updateStatus('📂 Requesting Downloads directory access...');
+          
+          // Request access to Downloads directory
+          let directoryHandle;
           try {
-            fileHandle = await dir.getFileHandle(filename, { create: false });
-            const existing = await fileHandle.getFile();
-            const text = await existing.text();
-            const merged = this.mergeKml(text, kmlStr);
-            await this.writeFile(fileHandle, merged);
-          } catch (e) {
-            if (e.name === 'NotFoundError') {
-              fileHandle = await dir.getFileHandle(filename, { create: true });
-              await this.writeFile(fileHandle, kmlStr);
-            } else throw e;
+            // Try to access the Downloads directory directly
+            directoryHandle = await window.showDirectoryPicker({
+              id: 'downloads',
+              startIn: 'downloads'
+            });
+          } catch (err) {
+            if (err.name === 'AbortError') {
+              this.updateStatus('❌ Directory access cancelled');
+              return;
+            }
+            throw err;
           }
 
+          this.debugLog('✅ Directory access granted: ' + directoryHandle.name);
+          this.updateStatus('🔍 Scanning for today\'s KML files...');
+
+          // Scan for KML files matching today's pattern
+          const kmlFiles = [];
+          const filePattern = new RegExp(`^${todayDateStr}_cumulative_\\d{6}\\.kml$`);
+          
+          for await (const [name, handle] of directoryHandle.entries()) {
+            if (handle.kind === 'file' && filePattern.test(name)) {
+              this.debugLog('📄 Found matching file: ' + name);
+              kmlFiles.push({ name, handle });
+            }
+          }
+
+          if (kmlFiles.length === 0) {
+            this.showError(`❌ No KML files found for today (${todayDateStr})`);
+            this.updateStatus('✅ App ready! Awaiting "POSITION"');
+            return;
+          }
+
+          this.showSuccess(`📊 Found ${kmlFiles.length} KML file(s) to merge`);
+          this.updateStatus('📖 Reading and parsing KML files...');
+
+          // Parse all KML files and extract placemarks
+          const allPlacemarks = [];
+          
+          for (const fileInfo of kmlFiles) {
+            try {
+              const file = await fileInfo.handle.getFile();
+              const content = await file.text();
+              const placemarks = this.extractPlacemarksFromKML(content);
+              allPlacemarks.push(...placemarks);
+              this.debugLog(`✅ Extracted ${placemarks.length} placemarks from ${fileInfo.name}`);
+            } catch (err) {
+              this.debugLog(`⚠️ Error reading ${fileInfo.name}: ${err.message}`);
+            }
+          }
+
+          if (allPlacemarks.length === 0) {
+            this.showError('❌ No valid placemarks found in KML files');
+            this.updateStatus('✅ App ready! Awaiting "POSITION"');
+            return;
+          }
+
+          // Sort placemarks by timestamp if available
+          allPlacemarks.sort((a, b) => {
+            const timeA = this.extractTimestampFromDescription(a.description);
+            const timeB = this.extractTimestampFromDescription(b.description);
+            return timeA - timeB;
+          });
+
+          // Generate merged KML
+          const mergedKML = this.generateMergedKML(allPlacemarks, todayDateStr);
+          const mergedFilename = `${todayDateStr}_MERGE.kml`;
+
+          // Download merged KML
+          const blob = new Blob([mergedKML], { type: 'application/vnd.google-earth.kml+xml' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = mergedFilename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          this.showSuccess(`🎉 Merged ${allPlacemarks.length} points from ${kmlFiles.length} files into ${mergedFilename}`);
+          this.updateStatus('✅ App ready! Awaiting "POSITION"');
           this.playCompletionTone();
-          this.currentStep = 'finished';
-          this.downloadBtn.hidden = true;
-          this.showMessage(`KML saved: ${filename}`);
+
         } catch (err) {
-          console.error(err);
-          this.showMessage(`Error: ${err.message}`);
+          this.debugLog('❌ Merge error: ' + err.message);
+          this.showError('❌ Merge failed: ' + err.message);
+          this.updateStatus('✅ App ready! Awaiting "POSITION"');
         }
       }
 
-      generateCombinedKML() {
-        const hdr = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
-        const ftr = `</Document></kml>`;
-        const marks = this.places.map((p,i) => {
-          const name = p.type==='position' ? `Position ${i+1}` : `Find: ${p.description}`;
-          return `<Placemark>
-  <name>${name}</name>
-  <TimeStamp><when>${p.timestamp.toISOString()}</when></TimeStamp>
-  <Point><coordinates>${p.longitude},${p.latitude},0</coordinates></Point>
-</Placemark>`;
-        }).join('\n');
-        return hdr + '\n' + marks + '\n' + ftr;
+      extractPlacemarksFromKML(kmlContent) {
+        const placemarks = [];
+        
+        try {
+          // Parse XML
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(kmlContent, 'text/xml');
+          
+          // Check for parsing errors
+          const parserError = xmlDoc.querySelector('parsererror');
+          if (parserError) {
+            this.debugLog('⚠️ XML parsing error: ' + parserError.textContent);
+            return placemarks;
+          }
+
+          // Extract all Placemark elements
+          const placemarkElements = xmlDoc.querySelectorAll('Placemark');
+          
+          for (const placemark of placemarkElements) {
+            const nameEl = placemark.querySelector('name');
+            const descEl = placemark.querySelector('description');
+            const coordsEl = placemark.querySelector('Point coordinates');
+            
+            if (coordsEl) {
+              const coords = coordsEl.textContent.trim().split(',');
+              if (coords.length >= 2) {
+                placemarks.push({
+                  name: nameEl ? nameEl.textContent.trim() : 'Unknown',
+                  description: descEl ? descEl.textContent.trim() : '',
+                  longitude: parseFloat(coords[0]),
+                  latitude: parseFloat(coords[1]),
+                  altitude: coords.length > 2 ? parseFloat(coords[2]) : 0
+                });
+              }
+            }
+          }
+          
+        } catch (err) {
+          this.debugLog('⚠️ KML parsing error: ' + err.message);
+        }
+        
+        return placemarks;
       }
 
-      downloadKML(kml) {
-        const blob = new Blob([kml], { type:'application/vnd.google-earth.kml+xml' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const ts = new Date().toISOString().replace(/[:\-]/g,'').split('.')[0];
-        a.download = `metal_log_${ts}.kml`;
-        a.href = url; a.click();
-        URL.revokeObjectURL(url);
+      extractTimestampFromDescription(description) {
+        // Try to extract timestamp from description
+        // Expected format: "description\nMM/DD/YYYY, HH:MM:SS AM/PM"
+        const lines = description.split('\n');
+        if (lines.length > 1) {
+          try {
+            return new Date(lines[lines.length - 1]);
+          } catch (err) {
+            // If parsing fails, return current time
+            return new Date();
+          }
+        }
+        return new Date();
       }
 
-      displayCoordinates(lat, lon) {
-        this.latlon.textContent = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
+      generateMergedKML(placemarks, dateStr) {
+        let placemarksXML = '';
+        
+        placemarks.forEach((p, index) => {
+          const nameEscaped = p.name
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          const descEscaped = p.description
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+          placemarksXML += `
+    <Placemark>
+      <name>${nameEscaped}</name>
+      <description>${descEscaped}</description>
+      <Point><coordinates>${p.longitude},${p.latitude},${p.altitude}</coordinates></Point>
+    </Placemark>`;
+        });
+
+        return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Metal Detector Finds - Merged (${dateStr})</name>
+    <description>Merged from ${placemarks.length} finds collected on ${dateStr}</description>${placemarksXML}
+  </Document>
+</kml>`;
       }
 
       playBeep() {
-        const osc = this.audioCtx.createOscillator();
-        osc.frequency.value = 800; osc.connect(this.audioCtx.destination);
-        osc.start(); setTimeout(()=>osc.stop(),100);
+        if (!this.audioContext) return;
+        try {
+          if (this.audioContext.state === 'suspended') this.audioContext.resume();
+          const osc = this.audioContext.createOscillator();
+          const gain = this.audioContext.createGain();
+          osc.connect(gain);
+          gain.connect(this.audioContext.destination);
+          osc.frequency.setValueAtTime(800, this.audioContext.currentTime);
+          gain.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5);
+          osc.start(this.audioContext.currentTime);
+          osc.stop(this.audioContext.currentTime + 0.5);
+        } catch (e) {}
       }
+
       playCompletionTone() {
-        const osc = this.audioCtx.createOscillator();
-        osc.frequency.value = 400; osc.connect(this.audioCtx.destination);
-        osc.start(); setTimeout(()=>osc.stop(),500);
+        if (!this.audioContext) return;
+        try {
+          if (this.audioContext.state === 'suspended') this.audioContext.resume();
+          const osc = this.audioContext.createOscillator();
+          const gain = this.audioContext.createGain();
+          osc.connect(gain);
+          gain.connect(this.audioContext.destination);
+          osc.frequency.setValueAtTime(1200, this.audioContext.currentTime);
+          gain.gain.setValueAtTime(0.4, this.audioContext.currentTime);
+          osc.start(this.audioContext.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(400, this.audioContext.currentTime + 0.3);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
+          osc.stop(this.audioContext.currentTime + 0.3);
+        } catch (e) {}
       }
 
-      updateUI() {
-        this.voiceIndicator.className = this.isListening ? 'listening-on':'listening-off';
-        this.startBtn.disabled = this.isListening;
-        this.stopBtn.disabled  = !this.isListening;
-        this.downloadBtn.hidden = !this.places.length || this.currentStep==='finished';
-        this.statusText.textContent = this.isListening ? 'Listening…':'Paused';
+      updateStatus(message) {
+        this.statusEl.textContent = message;
+        this.debugLog('Status: ' + message);
       }
 
-      showMessage(txt) {
-        const div = document.createElement('div');
-        div.className='message'; div.textContent=txt;
-        this.messages.appendChild(div);
-        setTimeout(()=>div.remove(),5000);
+      updateVoiceIndicator(state) {
+        this.voiceIndicatorEl.className = `voice-indicator ${state}`;
+        if (state === 'listening') {
+          this.voiceIndicatorEl.textContent = '🔴 Listening…';
+        } else if (state === 'processing') {
+          this.voiceIndicatorEl.textContent = '⌛ Processing…';
+        } else {
+          this.voiceIndicatorEl.textContent = '🎤 Voice Commands Ready';
+        }
       }
 
-      // -- FS Access API helpers --
-      async getDirectory() {
-        if (this.directoryHandle) return this.directoryHandle;
-        this.directoryHandle = await window.showDirectoryPicker();
-        return this.directoryHandle;
+      showError(message) {
+        const errEl = document.createElement('div');
+        errEl.className = 'error';
+        errEl.textContent = '❌ ' + message;
+        this.messagesEl.appendChild(errEl);
+        setTimeout(() => {
+          if (errEl.parentNode) errEl.parentNode.removeChild(errEl);
+        }, 10000);
+        this.debugLog('Error: ' + message);
       }
-      getFilenameForToday() {
-        const now = new Date();
-        const dd = String(now.getDate()).padStart(2,'0');
-        const mm = String(now.getMonth()+1).padStart(2,'0');
-        const yyyy = now.getFullYear();
-        return `${dd}-${mm}-${yyyy}.kml`;
+
+      showSuccess(message) {
+        const sucEl = document.createElement('div');
+        sucEl.className = 'success';
+        sucEl.textContent = '✅ ' + message;
+        this.messagesEl.appendChild(sucEl);
+        setTimeout(() => {
+          if (sucEl.parentNode) sucEl.parentNode.removeChild(sucEl);
+        }, 8000);
+        this.debugLog('Success: ' + message);
       }
-      mergeKml(existingText, newKml) {
-        const o = existingText.indexOf('<Document>');
-        const c = existingText.lastIndexOf('</Document>');
-        if (o<0||c<0) throw new Error('Invalid KML');
-        const head = existingText.slice(0, o+'<Document>'.length);
-        const tail = existingText.slice(c);
-        const ns = newKml.slice(newKml.indexOf('<Placemark>'), newKml.lastIndexOf('</Placemark>')+'</Placemark>'.length);
-        return head + '\n' + ns + '\n' + tail;
+
+      debugLog(message) {
+        if (!this.debugMode) return;
+        console.log('[AndroidLogger] ' + message);
+        const dbgEl = document.createElement('div');
+        dbgEl.className = 'debug';
+        dbgEl.textContent = '🐛 ' + message;
+        this.messagesEl.appendChild(dbgEl);
+        const logs = this.messagesEl.querySelectorAll('.debug');
+        if (logs.length > 5) logs[0].remove();
+        setTimeout(() => {
+          if (dbgEl.parentNode) dbgEl.parentNode.removeChild(dbgEl);
+        }, 8000);
       }
-      async writeFile(handle, contents) {
-        const w = await handle.createWritable();
-        await w.write(contents);
-        await w.close();
+
+      showAndroidHelp() {
+        const hlp = document.createElement('div');
+        hlp.className = 'android-help';
+        hlp.innerHTML = `
+          <h4>🤖 Android Tips:</h4>
+          <strong>1. Browser:</strong> Use Chrome<br>
+          <strong>2. Permissions:</strong><br>
+            • Chrome Settings → Microphone → Allow<br>
+            • Android Settings → Chrome → Permissions → Mic & Location<br>
+          <strong>3. Connectivity:</strong> Internet needed for speech recognition<br>
+        `;
+        this.messagesEl.appendChild(hlp);
+        setTimeout(() => {
+          if (hlp.parentNode) hlp.parentNode.removeChild(hlp);
+        }, 20000);
       }
     }
 
-    window.addEventListener('load', () => new AndroidMetalDetectorLogger());
+    // Instantiate and auto-initialize on DOMContentLoaded
+    let androidLogger;
+    document.addEventListener('DOMContentLoaded', () => {
+      androidLogger = new AndroidMetalDetectorLogger();
+      androidLogger.initializeApp();
+    });
   </script>
 </body>
 </html>
